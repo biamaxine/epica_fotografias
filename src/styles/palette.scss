@@ -1,0 +1,143 @@
+@use 'sass:map'; // Importa o módulo de manipulação de mapas do Sass
+
+// Define um mapa básico de paletas de cores
+$map: (
+  'neutral': (),  // Paleta neutra
+  'primary': (),  // Paleta primária
+  'accent': (),   // Paleta de evidência
+  'wrong': (),    // Paleta de erro
+);
+
+// Função para configurar a paleta de cores
+@function set-palette($key, $hue, $saturation, $map: $map) {
+  @if map-has-key($map, $key) { // Verifica se a chave existe no mapa
+    $palette: (); // Inicializa a paleta
+    $contrast: (); // Inicializa a paleta de contraste
+
+    // Loop para criar 9 tons diferentes
+    @for $i from 1 through 9 {
+      $contrast-num: 0; // Inicializa o número de contraste
+      $num: hsl($hue, $saturation, ((10 - $i) * 10%)); // Calcula a cor usando HSL
+
+      // Define a cor de contraste dependendo do índice
+      @if $i <= 5 {
+        $contrast-num: hsl($hue, $saturation, 90%); // Cores mais claras para os primeiros 5
+      } @else {
+        $contrast-num: hsl($hue, $saturation, 10%); // Cores mais escuras para os últimos 4
+      }
+
+      // Adiciona a cor e o contraste ao mapa
+      $palette: map.set($palette, $i * 100, $num);
+      $contrast: map.set($contrast, $i * 100, $contrast-num);
+    }
+
+    // Adiciona a paleta de contraste à paleta
+    $palette: map.set($palette, 'contrast', $contrast);
+
+    @return $palette; // Retorna a paleta completa
+  }
+
+  // Erro se a chave não existir no mapa
+  @error '$palette: "#{$key}" not exist in $palettes.';
+}
+
+// Função para configurar o tema
+@function set-theme($key: ('primary': (), 'accent': (), 'wrong': (), 'neutral': ()), $map: $map) {
+  $primary: (); // Inicializa a paleta primária
+  @if map-has-key($key, 'primary') {
+    $primary: map-get($key, 'primary'); // Obtém a paleta primária se existir
+  }
+  $accent: (); // Inicializa a paleta de evidência
+  @if map-has-key($key, 'accent') {
+    $accent: map-get($key, 'accent'); // Obtém a paleta de evidência se existir
+  }
+  $wrong: (); // Inicializa a paleta de erro
+  @if map-has-key($key, 'wrong') {
+    $wrong: map-get($key, 'wrong'); // Obtém a paleta de erro se existir
+  }
+  $neutral: (); // Inicializa a paleta neutra
+  @if map-has-key($key, 'neutral') {
+    $neutral: map-get($key, 'neutral'); // Obtém a paleta neutra se existir
+  }
+
+  // Atualiza o mapa global com as paletas
+  $map: map.set($map, 'primary', $primary) !global;
+  $map: map.set($map, 'accent', $accent) !global;
+  $map: map.set($map, 'wrong', $wrong) !global;
+  $map: map.set($map, 'neutral', $neutral) !global;
+
+  @return $map; // Retorna o mapa atualizado
+}
+
+// Função para obter uma cor de uma paleta
+@function get-color($key, $num, $map: $map) {
+  @if map-has-key($map, $key) { // Verifica se a chave existe
+    $palette: map-get($map, $key); // Obtém a paleta correspondente
+
+    @if map-has-key($palette, $num) { // Verifica se o número da cor existe
+      $value: map-get($palette, $num); // Obtém o valor da cor
+
+      // Retorna o valor se for uma cor
+      @if type-of($value) == color {
+        @return $value;
+      } @else if $num == 'contrast' {
+        // Mensagem de erro se tentar acessar um contraste incorretamente
+        @error 'Use "get-contrast($palette-name, $num $map: $map)" to get contrasts.';
+      }
+    }
+
+    // Mensagem de erro se o número não for válido
+    @error '$num: "#{$num}" invalid.';
+  }
+
+  // Mensagem de erro se a paleta não existir
+  @error '$palette: "#{$key}" not exist.';
+}
+
+// Função para obter a cor de contraste de uma paleta
+@function get-contrast($key, $num, $map: $map) {
+  @if map-has-key($map, $key) { // Verifica se a chave existe
+    $contrast: map-get(map-get($map, $key), 'contrast'); // Obtém a paleta de contraste
+
+    @if map-has-key($contrast, $num) { // Verifica se o número de contraste existe
+      @return map-get($contrast, $num); // Retorna a cor de contraste
+    }
+
+    // Mensagem de erro se o número de contraste não for válido
+    @error '$num: "#{$num}" invalid.';
+  }
+
+  // Mensagem de erro se a paleta não existir
+  @error '$palette: "#{$key}" not exist.';
+}
+
+// Mixin para inicializar estilos de acordo com as paletas
+@mixin init($map:  $map) {
+  $styles: ( // Mapeia os estilos CSS para as propriedades correspondentes
+    'bg': background-color,
+    'color': color,
+    'border': border-color,
+  );
+
+  // Loop para cada estilo definido
+  @each $style-name, $style in $styles {
+    .#{$style-name} { // Cria uma classe para cada estilo
+      @each $palette-name, $palette in $map { // Itera sobre as paletas
+        &-#{$palette-name} { // Cria uma classe para cada paleta
+
+          @each $num, $color in $palette { // Itera sobre os números e cores da paleta
+            @if type-of($color) == color {
+              &-#{$num} { #{$style}: $color; } // Define a propriedade se for uma cor
+
+            } @else {
+              $contrast: $color; // Se não for uma cor, trata como contraste
+              @each $contrast-num, $contrast-color in $contrast {
+                &-#{$contrast-num}-contrast { #{$style}: $contrast-color; } // Define a propriedade de contraste
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
